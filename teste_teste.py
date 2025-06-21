@@ -44,6 +44,7 @@ def analyze_surf(results):
     current_draw_sequence = 0
     
     if results:
+        # Pega o primeiro resultado para determinar a cor da sequência atual
         first_result_current_analysis = results[0] 
         for r in results: 
             if r == first_result_current_analysis:
@@ -54,7 +55,7 @@ def analyze_surf(results):
                 else: # draw
                     current_draw_sequence += 1
             else:
-                break
+                break # A sequência atual foi interrompida
     
     max_home_sequence = 0
     max_away_sequence = 0
@@ -64,6 +65,7 @@ def analyze_surf(results):
     temp_away_seq = 0
     temp_draw_seq = 0
 
+    # Itera sobre todos os resultados para encontrar as sequências máximas históricas
     for res in results: 
         if res == 'home':
             temp_home_seq += 1
@@ -201,19 +203,18 @@ def find_complex_patterns(results):
                     else: 
                         patterns[f"Padrão Bloco {block_size}x{block_size} ({block1[0].capitalize()}-{block2[0].capitalize()})"] += 1
     
+    # Padrão Escada Crescente 1-2-3
     if len(colors) >= 6: 
-        if colors[0] == colors[2] and colors[2] == colors[3] and colors[3] == colors[4] and \
-           colors[1] != colors[0] and colors[1] != colors[5] and colors[5] != colors[0] and \
-           colors[0] == colors[5]: 
-            if colors[0] == colors[5] and colors[1] != colors[0] and \
-               colors[2] == colors[1] and colors[3] == colors[0] and \
-               colors[4] == colors[0] and colors[5] == colors[0]:
-                patterns[f"Padrão Escada Crescente 1-2-3 ({colors[0].capitalize()}-{colors[1].capitalize()}-{colors[0].capitalize()})"] += 1
+        if (colors[0] == colors[2] and colors[2] == colors[3] and colors[3] == colors[4] and 
+            colors[1] != colors[0] and colors[1] != colors[5] and colors[5] != colors[0] and 
+            colors[0] == colors[5]): 
+            patterns[f"Padrão Escada Crescente 1-2-3 ({colors[0].capitalize()}-{colors[1].capitalize()}-{colors[0].capitalize()})"] += 1
 
+    # Padrão Escada Decrescente 3-2-1
     if len(colors) >= 6: 
-        if colors[0] == colors[1] and colors[1] == colors[2] and \
-           colors[3] == colors[4] and colors[3] != colors[0] and \
-           colors[5] != colors[3] and colors[5] == colors[0]: 
+        if (colors[0] == colors[1] and colors[1] == colors[2] and 
+            colors[3] == colors[4] and colors[3] != colors[0] and 
+            colors[5] != colors[3] and colors[5] == colors[0]): 
             patterns[f"Padrão Escada Decrescente 3-2-1 ({colors[0].capitalize()}-{colors[3].capitalize()}-{colors[5].capitalize()})"] += 1
 
     return dict(patterns)
@@ -230,7 +231,7 @@ def analyze_break_probability(results):
     for i in range(len(relevant_results) - 1):
         if get_color(relevant_results[i]) != get_color(relevant_results[i+1]):
             breaks += 1
-        total_sequences_considered += 1
+        total_sequences_considered += 1 # Conta cada transição como uma sequência considerada
             
     break_chance = (breaks / total_sequences_considered) * 100 if total_sequences_considered > 0 else 0
 
@@ -283,6 +284,7 @@ def analyze_draw_specifics(results):
             for i in range(1, len(draw_indices)):
                 intervals.append(abs(draw_indices[i-1] - draw_indices[i])) 
             
+            # Se a maioria dos intervalos entre empates for 5 ou menos
             if intervals and sum(1 for x in intervals if x <= 5) / len(intervals) >= 0.6: 
                 recurrent_draw = True
 
@@ -333,30 +335,33 @@ def generate_advanced_suggestion(results, surf_analysis, color_analysis, complex
     # Só adicionamos pontos para quebra se a sequência atingiu o limiar crítico OU o máximo histórico
     if last_result_color == 'red':
         if current_streak >= MIN_CRITICAL_SURF_THRESHOLD: 
-            bet_scores['away'] += 130 # Pontuação alta para quebra
+            # Verifica se já há uma pontuação alta para quebra para não somar desnecessariamente
+            if bet_scores['away'] < 130: 
+                bet_scores['away'] = max(bet_scores['away'], 130) # Garante que seja pelo menos 130
             reasons['away'].append(f"ALERTA DE QUEBRA: Sequência de Vermelho excepcionalmente longa ({current_streak}x). Forte sugestão de quebra para Azul.")
             guarantees['away'].append(f"Quebra de Surf Longo ({last_result_color.capitalize()})")
         if surf_analysis['max_home_sequence'] > 0 and current_streak >= surf_analysis['max_home_sequence'] and current_streak >= 4: 
-            # Verifica se essa pontuação de quebra de recorde é maior que a pontuação de surf longo já adicionada
-            # Isso evita pontuar duas vezes para a mesma quebra e garante a prioridade do recorde
-            if bet_scores['away'] < 150: # Evita somar se já pontuou mais alto
-                bet_scores['away'] += 150 - bet_scores['away'] if bet_scores['away'] > 0 else 150 # Garante que a pontuação seja 150 ou adicione o restante
-                reasons['away'].append(f"ALERTA MÁXIMO DE QUEBRA: Sequência de Vermelho ({current_streak}x) atingiu/superou o máximo histórico ({surf_analysis['max_home_sequence']}x).")
-                guarantees['away'].append(f"Quebra de Surf Recorde ({last_result_color.capitalize()})")
+            # Garante que essa pontuação (150) sobrescreva ou seja adicionada corretamente
+            if bet_scores['away'] < 150: # Se já pontuou 130, garante que a nova pontuação seja 150
+                bet_scores['away'] = max(bet_scores['away'], 150)
+            reasons['away'].append(f"ALERTA MÁXIMO DE QUEBRA: Sequência de Vermelho ({current_streak}x) atingiu/superou o máximo histórico ({surf_analysis['max_home_sequence']}x).")
+            guarantees['away'].append(f"Quebra de Surf Recorde ({last_result_color.capitalize()})")
 
     elif last_result_color == 'blue':
         if current_streak >= MIN_CRITICAL_SURF_THRESHOLD: 
-            bet_scores['home'] += 130
+            if bet_scores['home'] < 130:
+                bet_scores['home'] = max(bet_scores['home'], 130)
             reasons['home'].append(f"ALERTA DE QUEBRA: Sequência de Azul excepcionalmente longa ({current_streak}x). Forte sugestão de quebra para Vermelho.")
             guarantees['home'].append(f"Quebra de Surf Longo ({last_result_color.capitalize()})")
         if surf_analysis['max_away_sequence'] > 0 and current_streak >= surf_analysis['max_away_sequence'] and current_streak >= 4: 
-            if bet_scores['home'] < 150: # Evita somar se já pontuou mais alto
-                bet_scores['home'] += 150 - bet_scores['home'] if bet_scores['home'] > 0 else 150
-                reasons['home'].append(f"ALERTA MÁXIMO DE QUEBRA: Sequência de Azul ({current_streak}x) atingiu/superou o máximo histórico ({surf_analysis['max_away_sequence']}x).")
-                guarantees['home'].append(f"Quebra de Surf Recorde ({last_result_color.capitalize()})")
+            if bet_scores['home'] < 150:
+                bet_scores['home'] = max(bet_scores['home'], 150)
+            reasons['home'].append(f"ALERTA MÁXIMO DE QUEBRA: Sequência de Azul ({current_streak}x) atingiu/superou o máximo histórico ({surf_analysis['max_away_sequence']}x).")
+            guarantees['home'].append(f"Quebra de Surf Recorde ({last_result_color.capitalize()})")
 
     # Para Empate, a lógica de quebra é a mesma, mas não temos uma aposta "seguir empate" primária forte aqui
     elif last_result_color == 'yellow' and surf_analysis['max_draw_sequence'] > 0 and current_streak >= surf_analysis['max_draw_sequence'] and current_streak >= 2:
+        # A pontuação para quebra de empate é distribuída, não diretamente para uma cor.
         bet_scores['home'] += 80 
         bet_scores['away'] += 80
         reasons['home'].append(f"Quebra de Surf: Sequência atual de Empate ({current_streak}x) atingiu ou superou o máximo histórico.")
@@ -477,7 +482,7 @@ def generate_advanced_suggestion(results, surf_analysis, color_analysis, complex
                         reasons['red'].append(f"Padrão '{pattern}' incompleto. Espera-se Vermelho para completar a simetria.")
                         guarantees['red'].append(pattern + " Incompleto")
 
-    # NOVO: Padrão Escada
+    # Padrão Escada
     if "Padrão Escada Crescente 1-2-3" in complex_patterns and len(results) >= 5: 
         r0, r1, r2, r3, r4 = [get_color(x) for x in results[:5]]
         if r0 == r1 and r1 != r2 and r2 == r3 and r3 == r4: 
@@ -520,7 +525,8 @@ def generate_advanced_suggestion(results, surf_analysis, color_analysis, complex
     
     # 7. Empate Recorrente / Empate "Atrasado"
     if draw_specifics['recurrent_draw']:
-        bet_scores['draw'] += 70 
+        # Pontuação ligeiramente reduzida para 60 para não dominar outras sugestões fortes.
+        bet_scores['draw'] += 60 
         reasons['draw'].append(f"Empate Recorrente: Padrão de empates em intervalos curtos detectado.")
         guarantees['draw'].append("Empate Recorrente")
     
@@ -538,6 +544,7 @@ def generate_advanced_suggestion(results, surf_analysis, color_analysis, complex
         if score > max_score:
             max_score = score
             suggested_bet_type = bet_type
+        # Em caso de empate de pontuação, prioriza Casa/Visitante sobre Empate, e Casa sobre Visitante (arbitrário, pode ser ajustado)
         elif score == max_score:
             if suggested_bet_type == 'draw' and bet_type != 'draw': 
                 max_score = score
@@ -549,10 +556,11 @@ def generate_advanced_suggestion(results, surf_analysis, color_analysis, complex
     if suggested_bet_type == 'none' or max_score < 30: 
         return {'suggestion': 'Manter Observação', 'confidence': 0, 'reason': 'Nenhum padrão forte ou combinação de padrões detectada.', 'guarantee_pattern': 'N/A', 'bet_type': 'none'}
 
+    # Concatena todas as razões para a sugestão final
     final_reason = " ".join(reasons[suggested_bet_type])
     final_guarantee = ", ".join(guarantees[suggested_bet_type])
 
-    confidence = min(95, max(0, int(max_score * 0.6))) 
+    confidence = min(95, max(0, int(max_score * 0.6))) # Ajusta a confiança para ser entre 0-95%
 
     return {
         'suggestion': suggested_bet_type.upper(),
@@ -579,6 +587,7 @@ st.set_page_config(layout="wide", page_title="Analisador de Football Studio IA")
 
 st.title("⚽ Football Studio Analisador Inteligente 🃏")
 
+# Inicialização do estado da sessão
 if 'results' not in st.session_state:
     st.session_state.results = []
 if 'last_suggestion' not in st.session_state:
@@ -614,6 +623,7 @@ if st.sidebar.button("Limpar Histórico"):
     st.session_state.guarantee_status = {'status': 'N/A', 'message': ''}
     st.rerun()
 
+# Exibe o status da última aposta no sidebar
 if st.session_state.guarantee_status['status'] == 'SUCESSO':
     st.sidebar.success(f"✅ Última Aposta: {st.session_state.guarantee_status['message']}")
 elif st.session_state.guarantee_status['status'] == 'FALHA':
@@ -635,7 +645,7 @@ if st.session_state.results:
         if (i + 1) % EMOJIS_PER_ROW == 0:
             emoji_lines.append(current_line)
             current_line = ""
-    if current_line: 
+    if current_line: # Adiciona a última linha se não estiver completa
         emoji_lines.append(current_line)
     
     for line in emoji_lines:
@@ -646,12 +656,14 @@ else:
 st.header("Análise IA e Sugestão")
 
 if len(st.session_state.results) >= MIN_RESULTS_FOR_SUGGESTION:
+    # Executa todas as análises
     surf_analysis_data = analyze_surf(st.session_state.results)
     color_analysis_data = analyze_colors(st.session_state.results)
     complex_patterns_data = find_complex_patterns(st.session_state.results)
     break_probability_data = analyze_break_probability(st.session_state.results)
     draw_specifics_data = analyze_draw_specifics(st.session_state.results)
 
+    # Gera a sugestão avançada com base em TODAS as análises
     suggestion_output = generate_advanced_suggestion(
         st.session_state.results,
         surf_analysis_data,
@@ -661,12 +673,14 @@ if len(st.session_state.results) >= MIN_RESULTS_FOR_SUGGESTION:
         draw_specifics_data
     )
 
+    # Armazena a última sugestão para verificar a garantia
     st.session_state.last_suggestion = {
         'suggestion': suggestion_output['suggestion'],
         'bet_type': suggestion_output['bet_type'],
         'guarantee_pattern': suggestion_output['guarantee_pattern']
     }
 
+    # Exibe a sugestão e seus detalhes
     if suggestion_output['bet_type'] == 'home':
         st.success(f"**Sugestão:** Apostar em CASA {get_color_emoji('red')} (Confiança: {suggestion_output['confidence']}%)")
     elif suggestion_output['bet_type'] == 'away':
@@ -681,6 +695,7 @@ if len(st.session_state.results) >= MIN_RESULTS_FOR_SUGGESTION:
 
     st.subheader("Detalhes da Análise:")
     
+    # Exibe detalhes de cada análise para depuração e informação
     st.write("---")
     st.markdown("##### Análise de Surf (Sequências):")
     st.write(f"- Sequência Atual Home: {surf_analysis_data['current_home_sequence']} (Max: {surf_analysis_data['max_home_sequence']})")
@@ -718,3 +733,4 @@ if len(st.session_state.results) >= MIN_RESULTS_FOR_SUGGESTION:
             st.write(f"  - {pattern}: {count} ocorrências")
 else:
     st.info(f"Adicione mais {MIN_RESULTS_FOR_SUGGESTION - len(st.session_state.results)} resultados para iniciar a análise.")
+
